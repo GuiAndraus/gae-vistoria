@@ -6,7 +6,7 @@
 //   NOTA_<data_hora>.m4a  áudio da nota (opcional)
 "use strict";
 
-const VERSAO_APP = "1.0.0";
+const VERSAO_APP = "1.0.1";
 const CFG = window.GAE_CONFIG || {};
 const $ = s => document.querySelector(s);
 
