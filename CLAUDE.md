@@ -66,9 +66,8 @@ capturas de tela e `resultado.json`. Passou em 05/11/2026 sem erros de console. 
   3×, a cada 20 s); **registro** (menu ⋯ › Registro de envio, `localStorage.gaeRegistro`, 200 linhas) com nome,
   tamanho e tempo de cada arquivo. O teste (`tools\teste_app.py`) simula o Drive (`page.route`): confere nomes,
   pastas, conteúdo do JSON, PATCH da nota editada e a falha isolada do áudio.
-- Etapa 2, no Gerador de Laudos: importar a pasta da vistoria, ligar notas às fotos pelo horário (com acerto do
-  relógio da câmera), mostrar a nota na Organização (sai junto com a foto "fora do laudo"), usar como legenda ou como
-  notas da IA na Descrição.
+- Etapa 2 **feita** no Gerador de Laudos 1.4.0 (05/11/2026): botão "Importar do celular" na Organização
+  (`Services/ImportadorVistoria.cs` do GaeFotosLaudo — regras de ligação lá). Mudar o formato do JSON = mudar os dois.
 
 ## Preferências do usuário
 - Respostas técnicas diretas e concisas, em português. Entregas por etapas.
