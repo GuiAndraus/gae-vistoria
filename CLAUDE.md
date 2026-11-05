@@ -57,7 +57,9 @@ capturas de tela e `resultado.json`. Passou em 05/11/2026 sem erros de console. 
 áudio) e o envio ao Drive (depende do ID do cliente).
 
 ## Pendências
-- Testar o login e o envio ao Drive no iPhone (ID do cliente configurado na 1.0.1).
+- Envio ao Drive testado no iPhone em 05/11/2026 (foto + áudio + nota chegaram em H:\Meu Drive\GAE Vistorias). O envio
+  do áudio travou uma vez (causa desconhecida): desde a 1.0.3 cada pedido tem prazo (`buscar`), mostra o passo, recomeça
+  ao voltar ao app; 1.0.4 tenta de novo sozinho (até 3×, a cada 20 s). Observar se volta a acontecer.
 - Etapa 2, no Gerador de Laudos: importar a pasta da vistoria, ligar notas às fotos pelo horário (com acerto do
   relógio da câmera), mostrar a nota na Organização (sai junto com a foto "fora do laudo"), usar como legenda ou como
   notas da IA na Descrição.

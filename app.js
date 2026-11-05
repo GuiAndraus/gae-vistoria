@@ -6,7 +6,7 @@
 //   NOTA_<data_hora>.m4a  áudio da nota (opcional)
 "use strict";
 
-const VERSAO_APP = "1.0.3";
+const VERSAO_APP = "1.0.4";
 const CFG = window.GAE_CONFIG || {};
 const $ = s => document.querySelector(s);
 
@@ -460,7 +460,7 @@ async function guardarExclusoes(ids) {
 let token = null, tokenExpira = 0, enviando = false;
 // O iPhone pausa o app em segundo plano e um envio pode ficar esperando para sempre: cada pedido tem prazo, e ao voltar
 // ao app um envio parado há mais de 15 s é abandonado e recomeça (envioGeracao invalida o envio antigo).
-let envioGeracao = 0, abortarEnvio = null, ultimoPasso = 0, passoEnvio = "";
+let envioGeracao = 0, abortarEnvio = null, ultimoPasso = 0, passoEnvio = "", tentativas = 0;
 
 async function buscar(url, opcoes, ms) {
   const c = new AbortController();
@@ -578,12 +578,14 @@ function jsonNota(it, v) {
 }
 
 function enviarSePuder() {
+  if (enviando) return;
   if (CFG.googleClientId && conectado() && navigator.onLine) enviar(false);
   else atualizarFaixa();
 }
 
 async function enviar(manual) {
   if (enviando) return;
+  if (manual) tentativas = 0;
   const falha = !CFG.googleClientId ? "Envio para o Drive ainda não configurado: use ⋯ › Compartilhar."
               : !navigator.onLine ? "Sem internet: os itens ficam no celular e vão quando houver sinal."
               : !conectado() ? "Toque em Entrar no Google para enviar." : null;
@@ -646,10 +648,17 @@ async function enviar(manual) {
         if (vistoria?.id === v.id) await desenharItens();
       }
     }
+    tentativas = 0;
     if (manual || enviados) aviso(enviados ? `${enviados} item(ns) enviado(s) para o Drive.` : "Nada para enviar.");
   } catch (e) {
     if (geracao !== envioGeracao) return;          // abandonado: outro envio já recomeçou
-    aviso("Envio interrompido: " + e.message, 8000);
+    // falha de rede/prazo: tenta de novo sozinho (até 3 vezes; zera quando um envio termina bem)
+    if (++tentativas <= 3) {
+      aviso(`Envio interrompido (${e.message}). Tentando de novo em 20 s…`, 8000);
+      setTimeout(enviarSePuder, 20000);
+    } else {
+      aviso("Envio interrompido: " + e.message + ". Toque em Enviar para tentar de novo.", 10000);
+    }
   } finally {
     if (geracao !== envioGeracao) return;
     enviando = false;
