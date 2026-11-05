@@ -6,7 +6,7 @@
 //   NOTA_<data_hora>.m4a  áudio da nota (opcional)
 "use strict";
 
-const VERSAO_APP = "1.0.2";
+const VERSAO_APP = "1.0.3";
 const CFG = window.GAE_CONFIG || {};
 const $ = s => document.querySelector(s);
 
@@ -172,7 +172,7 @@ async function atualizarFaixa(its) {
   if (!CFG.googleClientId) {
     f.innerHTML = `<span>${pend} item(ns) só no celular. Envio para o Drive não configurado: use ⋯ › Compartilhar.</span>`;
   } else if (enviando) {
-    f.innerHTML = `<span>Enviando para o Drive…</span>`;
+    f.innerHTML = `<span>Enviando para o Drive… ${escapar(passoEnvio)}</span>`;
   } else if (!conectado()) {
     f.innerHTML = `<span>${pend} item(ns) aguardando envio.</span><button id="fxEntrar">Entrar no Google</button>`;
     $("#fxEntrar").onclick = () => entrarGoogle().then(() => enviar(true)).catch(e => aviso(e.message));
@@ -458,6 +458,28 @@ async function guardarExclusoes(ids) {
 // =====================================================================
 
 let token = null, tokenExpira = 0, enviando = false;
+// O iPhone pausa o app em segundo plano e um envio pode ficar esperando para sempre: cada pedido tem prazo, e ao voltar
+// ao app um envio parado há mais de 15 s é abandonado e recomeça (envioGeracao invalida o envio antigo).
+let envioGeracao = 0, abortarEnvio = null, ultimoPasso = 0, passoEnvio = "";
+
+async function buscar(url, opcoes, ms) {
+  const c = new AbortController();
+  abortarEnvio = c;
+  const t = setTimeout(() => c.abort(), ms);
+  try {
+    return await fetch(url, { ...opcoes, signal: c.signal });
+  } catch (e) {
+    throw new Error(e.name === "AbortError" ? "o Drive não respondeu a tempo (sinal fraco?)" : e.message);
+  } finally {
+    clearTimeout(t);
+  }
+}
+
+function passo(texto) {
+  passoEnvio = texto;
+  ultimoPasso = Date.now();
+  atualizarFaixa();
+}
 const API = "https://www.googleapis.com/drive/v3/files";
 const UPLOAD = "https://www.googleapis.com/upload/drive/v3/files";
 
@@ -511,7 +533,7 @@ function atualizarBotaoGoogle() {
 }
 
 async function api(url, opcoes = {}) {
-  const r = await fetch(url, { ...opcoes, headers: { Authorization: "Bearer " + token, ...(opcoes.headers || {}) } });
+  const r = await buscar(url, { ...opcoes, headers: { Authorization: "Bearer " + token, ...(opcoes.headers || {}) } }, 30000);
   if (r.status === 401) {
     token = null;
     localStorage.removeItem("gaeToken");
@@ -542,7 +564,7 @@ async function subir(nome, blob, pai, idExistente) {
   });
   const destino = inicio.headers.get("Location");
   if (!destino) throw new Error("O Drive não devolveu o endereço de envio.");
-  const r = await fetch(destino, { method: "PUT", body: blob });
+  const r = await buscar(destino, { method: "PUT", body: blob }, 60000 + blob.size / 10);   // até ~10 kB/s
   if (!r.ok) throw new Error(`Drive ${r.status} ao enviar ${nome}`);
   return (await r.json()).id;
 }
@@ -568,11 +590,17 @@ async function enviar(manual) {
   if (falha) { if (manual) aviso(falha); atualizarFaixa(); return; }
 
   enviando = true;
-  atualizarFaixa();
-  let enviados = 0;
+  const geracao = ++envioGeracao;
+  const seguir = () => { if (geracao !== envioGeracao) throw new Error("retomado"); };
+  passo("");
+  let enviados = 0, total = 0;
   try {
+    passo("pasta");
     const raiz = await pastaDrive(CFG.pastaRaiz || "GAE Vistorias", "root");
-    for (const v0 of await todos("vistorias")) {
+    seguir();
+    const vistorias = await todos("vistorias");
+    for (const v of vistorias) total += (await itensDa(v.id)).filter(temPendencia).length;
+    for (const v0 of vistorias) {
       let v = v0;
       const pend = (await itensDa(v.id)).filter(temPendencia);
       if (!pend.length && !v.exclusoes?.length) continue;
@@ -589,19 +617,27 @@ async function enviar(manual) {
       await gravar("vistorias", v);
 
       for (const p of pend) {
+        seguir();
         let it = await ler("itens", p.id);
         if (!it) continue;
+        const n = `${enviados + 1} de ${total}`;
         if (it.foto && !it.drive.foto) {
+          passo(`${n}: foto (${(it.foto.size / 1e6).toFixed(1)} MB)`);
           const id = await subir(it.fotoNome, it.foto, v.pastaId);
+          seguir();
           it = await mudarItem(it.id, x => (x.drive.foto = id));
         }
         if (it?.audio && !it.drive.audio) {
+          passo(`${n}: áudio`);
           const id = await subir(it.audioNome, it.audio, v.pastaId);
+          seguir();
           it = await mudarItem(it.id, x => (x.drive.audio = id));
         }
         if (!it) continue;
         const texto = it.texto, nomeAudio = it.audioNome;
+        passo(`${n}: nota`);
         const id = await subir(`NOTA_${it.nome}.json`, jsonNota(it, v), v.pastaId, it.drive.nota);
+        seguir();
         await mudarItem(it.id, x => {
           x.drive.nota = id;
           if (x.texto === texto && x.audioNome === nomeAudio) x.notaAlterada = false;   // mudou durante o envio: vai de novo
@@ -612,9 +648,12 @@ async function enviar(manual) {
     }
     if (manual || enviados) aviso(enviados ? `${enviados} item(ns) enviado(s) para o Drive.` : "Nada para enviar.");
   } catch (e) {
-    aviso("Envio interrompido: " + e.message, 6000);
+    if (geracao !== envioGeracao) return;          // abandonado: outro envio já recomeçou
+    aviso("Envio interrompido: " + e.message, 8000);
   } finally {
+    if (geracao !== envioGeracao) return;
     enviando = false;
+    passoEnvio = "";
     atualizarBotaoGoogle();
     if (vistoria) { vistoria = await ler("vistorias", vistoria.id); await desenharItens(); }
     else if (!$("#telaLista").hidden) mostrarLista();
@@ -699,7 +738,16 @@ function ligar() {
   $("#btFecharRelogio").onclick = fecharRelogio;
 
   window.addEventListener("online", () => carregarGoogle().then(() => { atualizarBotaoGoogle(); enviarSePuder(); }));
-  document.addEventListener("visibilitychange", () => { if (!document.hidden) { atualizarBotaoGoogle(); enviarSePuder(); } });
+  document.addEventListener("visibilitychange", () => {
+    if (document.hidden) return;
+    atualizarBotaoGoogle();
+    if (enviando && Date.now() - ultimoPasso > 15000) {     // envio parado enquanto o app esteve pausado
+      envioGeracao++;
+      abortarEnvio?.abort();
+      enviando = false;
+    }
+    enviarSePuder();
+  });
 }
 
 (async function iniciar() {
