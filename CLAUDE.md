@@ -4,6 +4,11 @@ App de celular (app web instalável, PWA) para a vistoria: **foto pelo celular +
 tirada na câmera fotográfica, ligada pelo horário). Envia para o Google Drive; o **Gerador de Laudos**
 (`..\GaeFotosLaudo`) importa as fotos com as notas. Pedido do usuário em 05/11/2026.
 
+## Publicação
+- **GitHub Pages** (escolha do usuário, 05/11/2026): repositório público `GuiAndraus/gae-vistoria`, ramo `main`,
+  endereço **https://guiandraus.github.io/gae-vistoria/**. Publicar = `git push` (aumentar `VERSAO` em `sw.js` antes).
+  No Google Cloud, a origem autorizada é `https://guiandraus.github.io`.
+
 ## Decisões
 - **App web** (HTML/CSS/JS puro, sem build, sem bibliotecas), instalado pelo "Adicionar à Tela de Início": sem loja,
   sem conta de desenvolvedor da Apple, sem Mac. O usuário usa iPhone (fotos HEIC).
@@ -50,7 +55,6 @@ capturas de tela e `resultado.json`. Passou em 05/11/2026 sem erros de console. 
 áudio) e o envio ao Drive (depende do ID do cliente).
 
 ## Pendências
-- Hospedagem com HTTPS (câmera e microfone exigem) — a decidir com o usuário (GitHub Pages ou Hostinger).
 - Projeto no Google Cloud + ID do cliente OAuth (passo a passo no LEIAME.md) → `config.js`.
 - Etapa 2, no Gerador de Laudos: importar a pasta da vistoria, ligar notas às fotos pelo horário (com acerto do
   relógio da câmera), mostrar a nota na Organização (sai junto com a foto "fora do laudo"), usar como legenda ou como
