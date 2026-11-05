@@ -6,7 +6,7 @@
 //   NOTA_<data_hora>.m4a  áudio da nota (opcional)
 "use strict";
 
-const VERSAO_APP = "1.0.1";
+const VERSAO_APP = "1.0.2";
 const CFG = window.GAE_CONFIG || {};
 const $ = s => document.querySelector(s);
 
@@ -711,7 +711,12 @@ function ligar() {
     return;
   }
   navigator.storage?.persist?.();                       // pede para o sistema não apagar as fotos guardadas
-  if ("serviceWorker" in navigator) navigator.serviceWorker.register("sw.js").catch(() => {});
+  if ("serviceWorker" in navigator) {
+    // versão nova publicada: o service worker novo assume e o app recarrega sozinho (não na 1ª instalação)
+    const tinha = !!navigator.serviceWorker.controller;
+    navigator.serviceWorker.addEventListener("controllerchange", () => { if (tinha && !gravacao) location.reload(); });
+    navigator.serviceWorker.register("sw.js").catch(() => {});
+  }
   await mostrarLista();
   carregarGoogle().then(atualizarBotaoGoogle);
   enviarSePuder();
