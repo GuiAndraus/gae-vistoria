@@ -7,7 +7,9 @@ tirada na câmera fotográfica, ligada pelo horário). Envia para o Google Drive
 ## Publicação
 - **GitHub Pages** (escolha do usuário, 05/11/2026): repositório público `GuiAndraus/gae-vistoria`, ramo `main`,
   endereço **https://guiandraus.github.io/gae-vistoria/**. Publicar = `git push` (aumentar `VERSAO` em `sw.js` antes).
-  No Google Cloud, a origem autorizada é `https://guiandraus.github.io`.
+  No Google Cloud (projeto "GAE Vistoria" do usuário, app em modo teste com o e-mail dele como usuário de teste), a
+  origem autorizada é `https://guiandraus.github.io`; ID do cliente em `config.js` (público, não é segredo).
+  Versão nova: o service worker novo assume e o app recarrega sozinho (`controllerchange`).
 
 ## Decisões
 - **App web** (HTML/CSS/JS puro, sem build, sem bibliotecas), instalado pelo "Adicionar à Tela de Início": sem loja,
@@ -55,7 +57,7 @@ capturas de tela e `resultado.json`. Passou em 05/11/2026 sem erros de console. 
 áudio) e o envio ao Drive (depende do ID do cliente).
 
 ## Pendências
-- Projeto no Google Cloud + ID do cliente OAuth (passo a passo no LEIAME.md) → `config.js`.
+- Testar o login e o envio ao Drive no iPhone (ID do cliente configurado na 1.0.1).
 - Etapa 2, no Gerador de Laudos: importar a pasta da vistoria, ligar notas às fotos pelo horário (com acerto do
   relógio da câmera), mostrar a nota na Organização (sai junto com a foto "fora do laudo"), usar como legenda ou como
   notas da IA na Descrição.
