@@ -1,0 +1,114 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="theme-color" content="#012956">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-title" content="GAE Vistoria">
+<title>GAE Vistoria</title>
+<link rel="manifest" href="manifest.webmanifest">
+<link rel="icon" href="icones/icone-192.png">
+<link rel="apple-touch-icon" href="icones/icone-180.png">
+<link rel="stylesheet" href="estilo.css">
+</head>
+<body>
+
+<!-- ===== Lista de vistorias ===== -->
+<section id="telaLista" class="tela">
+  <header class="topo">
+    <div class="titulo">GAE Vistoria</div>
+    <button id="btGoogle" class="bt-topo"></button>
+  </header>
+  <main>
+    <button id="btNovaVistoria" class="bt-grande laranja">+ Nova vistoria</button>
+    <div id="listaVistorias"></div>
+    <p class="dica">As fotos e notas ficam guardadas no celular e são enviadas para a pasta
+      <b>GAE Vistorias</b> do seu Google Drive quando houver internet.</p>
+    <p class="versao" id="versao"></p>
+  </main>
+</section>
+
+<!-- ===== Vistoria aberta ===== -->
+<section id="telaVistoria" class="tela" hidden>
+  <header class="topo">
+    <button id="btVoltar" class="bt-topo">‹ Vistorias</button>
+    <div class="titulo" id="tituloVistoria"></div>
+    <button id="btMenu" class="bt-topo">⋯</button>
+  </header>
+  <div id="faixaEnvio" class="faixa"></div>
+  <main>
+    <div class="acoes">
+      <button id="btFoto" class="bt-acao laranja"><span class="ic">📷</span>Foto + nota</button>
+      <button id="btSoNota" class="bt-acao marinho"><span class="ic">🎙</span>Só nota<small>foto na câmera</small></button>
+    </div>
+    <input id="entradaFoto" type="file" accept="image/*" capture="environment" hidden>
+    <div id="listaItens"></div>
+  </main>
+</section>
+
+<!-- ===== Relógio para acertar a câmera ===== -->
+<section id="telaRelogio" class="tela relogio" hidden>
+  <div class="relogio-data" id="relogioData"></div>
+  <div class="relogio-hora" id="relogioHora"></div>
+  <p>Fotografe esta tela <b>com a câmera</b> antes das outras fotos.<br>
+     O Gerador de Laudos usa essa foto para acertar a diferença de horário entre a câmera e o celular.</p>
+  <button id="btFotografei" class="bt-grande laranja">Fotografei</button>
+  <button id="btFecharRelogio" class="bt-grande claro">Cancelar</button>
+</section>
+
+<!-- ===== Nota (nova ou edição) ===== -->
+<dialog id="dlgNota">
+  <form method="dialog" class="painel">
+    <img id="notaFoto" class="nota-foto" alt="" hidden>
+    <div class="nota-cab"><span id="notaTipo"></span><span id="notaHora"></span></div>
+    <textarea id="notaTexto" rows="4" placeholder="Legenda da foto (ex.: fissura na viga de borda). Toque em Gravar e fale, ou use o microfone do teclado."></textarea>
+    <button type="button" id="btGravar" class="bt-gravar">🎙 Gravar</button>
+    <div id="notaStatus" class="nota-status"></div>
+    <audio id="notaAudio" controls hidden></audio>
+    <div class="linha-bts">
+      <button type="button" id="btExcluir" class="bt texto-vermelho">Excluir</button>
+      <span class="espaco"></span>
+      <button type="button" id="btCancelarNota" class="bt claro">Cancelar</button>
+      <button type="button" id="btSalvarNota" class="bt laranja">Salvar</button>
+    </div>
+  </form>
+</dialog>
+
+<!-- ===== Nova vistoria ===== -->
+<dialog id="dlgNova">
+  <form method="dialog" class="painel">
+    <h2>Nova vistoria</h2>
+    <label>Código do cliente
+      <input id="novaCodigo" autocapitalize="characters" autocomplete="off" placeholder="ex.: TOC"></label>
+    <label>Descrição (opcional)
+      <input id="novaDescricao" autocomplete="off" placeholder="ex.: Residencial Tocantins"></label>
+    <div id="novaErro" class="erro"></div>
+    <div class="linha-bts">
+      <span class="espaco"></span>
+      <button type="button" id="btCancelarNova" class="bt claro">Cancelar</button>
+      <button type="button" id="btCriarNova" class="bt laranja">Criar</button>
+    </div>
+  </form>
+</dialog>
+
+<!-- ===== Menu da vistoria ===== -->
+<dialog id="dlgMenu">
+  <form method="dialog" class="painel menu">
+    <button type="button" id="mnRelogio" class="bt-menu">🕒 Acertar relógio da câmera</button>
+    <button type="button" id="mnEnviar" class="bt-menu">☁ Enviar agora para o Drive</button>
+    <button type="button" id="mnCompartilhar" class="bt-menu">⇪ Compartilhar arquivos (sem Google)</button>
+    <button type="button" id="mnAudio" class="bt-menu"></button>
+    <button type="button" id="mnExcluir" class="bt-menu texto-vermelho">Excluir vistoria do celular</button>
+    <button type="button" id="mnFechar" class="bt-menu claro">Fechar</button>
+  </form>
+</dialog>
+
+<div id="aviso" class="aviso" hidden></div>
+
+<script src="config.js"></script>
+<script src="app.js"></script>
+</body>
+</html>
