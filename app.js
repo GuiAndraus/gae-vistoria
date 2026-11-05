@@ -6,7 +6,7 @@
 //   NOTA_<data_hora>.m4a  áudio da nota (opcional)
 "use strict";
 
-const VERSAO_APP = "1.0.4";
+const VERSAO_APP = "1.1.0";
 const CFG = window.GAE_CONFIG || {};
 const $ = s => document.querySelector(s);
 
@@ -87,6 +87,25 @@ async function mudarItem(id, fn) {
   return it;
 }
 
+// Fotos e áudios ficam guardados como bytes ({ tipo, bytes }), não como Blob: no Safari do iPhone um Blob guardado no
+// IndexedDB às vezes não pode mais ser lido (o envio travava no áudio). Itens antigos ainda podem ter Blob.
+async function guardavel(blob) {
+  return blob ? { tipo: blob.type || "", bytes: await blob.arrayBuffer() } : null;
+}
+const comoBlob = x => !x ? null : x instanceof Blob ? x : new Blob([x.bytes], { type: x.tipo });
+const tamanhoDe = x => !x ? 0 : x instanceof Blob ? x.size : x.bytes.byteLength;
+const tipoDe = x => !x ? "" : x instanceof Blob ? x.type : x.tipo;
+
+function comPrazo(promessa, ms, msg) {
+  let t;
+  return Promise.race([promessa, new Promise((_, erro) => (t = setTimeout(() => erro(new Error(msg)), ms)))])
+    .finally(() => clearTimeout(t));
+}
+async function bytesDe(x) {
+  if (!(x instanceof Blob)) return x.bytes;
+  return comPrazo(x.arrayBuffer(), 15000, "não foi possível ler o arquivo guardado no celular");
+}
+
 const temPendencia = it =>
   (it.foto && !it.drive.foto) || (it.audio && !it.drive.audio) || !it.drive.nota || it.notaAlterada;
 
@@ -146,7 +165,7 @@ async function desenharItens() {
     cont.innerHTML = its.map(it => {
       let figura;
       if (it.mini) {
-        const u = URL.createObjectURL(it.mini);
+        const u = URL.createObjectURL(comoBlob(it.mini));
         urls.push(u);
         figura = `<img class="miniatura" src="${u}" alt="">`;
       } else {
@@ -256,9 +275,9 @@ async function fotoEscolhida(arquivo) {
                      ? arquivo.lastModified : agora);
   const id = await idLivre(d);
   const it = novoItem("foto", d, id);
-  it.foto = arquivo;
+  it.foto = await guardavel(arquivo);
   it.fotoNome = `CEL_${id}.${extensao(arquivo.type, "jpg")}`;
-  it.mini = await miniatura(arquivo);
+  it.mini = await guardavel(await miniatura(arquivo));
   await gravar("itens", it);         // já fica guardada, mesmo se a nota não for gravada
   await desenharItens();
   abrirNota(it);
@@ -311,13 +330,13 @@ function abrirNota(item, nova = false) {
   notaAtual = { item, nova, audioNovo: null };
   const img = $("#notaFoto");
   if (img.src) URL.revokeObjectURL(img.src);
-  if (item.foto) { img.src = URL.createObjectURL(item.foto); img.hidden = false; }
+  if (item.foto) { img.src = URL.createObjectURL(comoBlob(item.foto)); img.hidden = false; }
   else { img.removeAttribute("src"); img.hidden = true; }
   $("#notaTipo").textContent = item.tipo === "foto" ? "Foto do celular" : item.tipo === "relogio" ? "Relógio da câmera" : "Nota da foto tirada na câmera";
   $("#notaHora").textContent = horaCurta(item.hora);
   $("#notaTexto").value = item.texto || "";
   $("#notaStatus").textContent = "";
-  mostrarAudio(item.audio);
+  mostrarAudio(comoBlob(item.audio));
   $("#btExcluir").hidden = nova;
   $("#btGravar").hidden = item.tipo === "relogio";
   $("#dlgNota").showModal();
@@ -413,7 +432,7 @@ async function salvarNota() {
   if (atual.texto !== texto) { atual.texto = texto; atual.notaAlterada = !!atual.drive.nota; }
   if (audioNovo) {
     if (atual.drive.audio) exclusoes.push(atual.drive.audio);     // áudio novo substitui o enviado
-    atual.audio = audioNovo;
+    atual.audio = await guardavel(audioNovo);
     atual.audioNome = `NOTA_${atual.nome}.${extensao(audioNovo.type, "m4a")}`;
     atual.drive.audio = null;
     atual.notaAlterada = !!atual.drive.nota;
@@ -475,6 +494,16 @@ async function buscar(url, opcoes, ms) {
   }
 }
 
+/** Registro do envio (menu ⋯ › Registro de envio): para ver onde um envio parou. */
+function registrar(texto) {
+  try {
+    const d = new Date();
+    const l = JSON.parse(localStorage.getItem("gaeRegistro") || "[]");
+    l.push(`${p2(d.getDate())}/${p2(d.getMonth() + 1)} ${p2(d.getHours())}:${p2(d.getMinutes())}:${p2(d.getSeconds())}  ${texto}`);
+    localStorage.setItem("gaeRegistro", JSON.stringify(l.slice(-200)));
+  } catch { /* sem espaço: ignora */ }
+}
+
 function passo(texto) {
   passoEnvio = texto;
   ultimoPasso = Date.now();
@@ -532,8 +561,8 @@ function atualizarBotaoGoogle() {
   b.textContent = conectado() ? "Google ✓" : "Entrar no Google";
 }
 
-async function api(url, opcoes = {}) {
-  const r = await buscar(url, { ...opcoes, headers: { Authorization: "Bearer " + token, ...(opcoes.headers || {}) } }, 30000);
+async function api(url, opcoes = {}, prazo = 30000) {
+  const r = await buscar(url, { ...opcoes, headers: { Authorization: "Bearer " + token, ...(opcoes.headers || {}) } }, prazo);
   if (r.status === 401) {
     token = null;
     localStorage.removeItem("gaeToken");
@@ -555,18 +584,48 @@ async function pastaDrive(nome, pai) {
   return (await nova.json()).id;
 }
 
-/** Envio em 2 passos (resumable): aceita fotos grandes. Com idExistente, troca o conteúdo do arquivo. */
-async function subir(nome, blob, pai, idExistente) {
-  const inicio = await api(idExistente ? `${UPLOAD}/${idExistente}?uploadType=resumable` : `${UPLOAD}?uploadType=resumable`, {
-    method: idExistente ? "PATCH" : "POST",
-    headers: { "Content-Type": "application/json; charset=UTF-8", "X-Upload-Content-Type": blob.type || "application/octet-stream" },
-    body: JSON.stringify(idExistente ? {} : { name: nome, parents: [pai] })
-  });
-  const destino = inicio.headers.get("Location");
-  if (!destino) throw new Error("O Drive não devolveu o endereço de envio.");
-  const r = await buscar(destino, { method: "PUT", body: blob }, 60000 + blob.size / 10);   // até ~10 kB/s
-  if (!r.ok) throw new Error(`Drive ${r.status} ao enviar ${nome}`);
-  return (await r.json()).id;
+/**
+ * Envia um arquivo (conteúdo guardado, Blob ou bytes). Até 5 MB: um pedido só (multipart); maior: em 2 passos
+ * (resumable). Os bytes são lidos antes, para o pedido não depender de um Blob guardado. Com idExistente, troca o
+ * conteúdo do arquivo (nota editada).
+ */
+async function subir(nome, conteudo, pai, idExistente) {
+  const tipo = tipoDe(conteudo) || "application/octet-stream";
+  const bytes = new Uint8Array(await bytesDe(conteudo));
+  const meta = JSON.stringify(idExistente ? {} : { name: nome, parents: [pai] });
+  const prazo = 30000 + bytes.length / 20;                   // no mínimo ~20 kB/s
+  const t0 = Date.now(), kb = Math.round(bytes.length / 1024);
+  registrar(`→ ${nome} (${kb} kB)`);
+  let r;
+  if (bytes.length <= 5 * 1024 * 1024) {
+    const fronteira = "gae" + Math.random().toString(36).slice(2);
+    const enc = new TextEncoder();
+    const cab = enc.encode(`--${fronteira}\r\nContent-Type: application/json; charset=UTF-8\r\n\r\n${meta}\r\n` +
+                           `--${fronteira}\r\nContent-Type: ${tipo}\r\n\r\n`);
+    const fim = enc.encode(`\r\n--${fronteira}--`);
+    const corpo = new Uint8Array(cab.length + bytes.length + fim.length);
+    corpo.set(cab, 0);
+    corpo.set(bytes, cab.length);
+    corpo.set(fim, cab.length + bytes.length);
+    r = await api(idExistente ? `${UPLOAD}/${idExistente}?uploadType=multipart&fields=id` : `${UPLOAD}?uploadType=multipart&fields=id`, {
+      method: idExistente ? "PATCH" : "POST",
+      headers: { "Content-Type": `multipart/related; boundary=${fronteira}` },
+      body: corpo
+    }, prazo);
+  } else {
+    const inicio = await api(idExistente ? `${UPLOAD}/${idExistente}?uploadType=resumable` : `${UPLOAD}?uploadType=resumable`, {
+      method: idExistente ? "PATCH" : "POST",
+      headers: { "Content-Type": "application/json; charset=UTF-8", "X-Upload-Content-Type": tipo },
+      body: meta
+    });
+    const destino = inicio.headers.get("Location");
+    if (!destino) throw new Error("O Drive não devolveu o endereço de envio.");
+    r = await buscar(destino, { method: "PUT", body: bytes }, prazo);
+    if (!r.ok) throw new Error(`Drive ${r.status} ao enviar ${nome}`);
+  }
+  const id = (await r.json()).id;
+  registrar(`✓ ${nome} em ${((Date.now() - t0) / 1000).toFixed(1)} s`);
+  return id;
 }
 
 function jsonNota(it, v) {
@@ -595,7 +654,9 @@ async function enviar(manual) {
   const geracao = ++envioGeracao;
   const seguir = () => { if (geracao !== envioGeracao) throw new Error("retomado"); };
   passo("");
+  registrar(`Envio iniciado${manual ? " (manual)" : ""}`);
   let enviados = 0, total = 0;
+  const falhas = [];
   try {
     passo("pasta");
     const raiz = await pastaDrive(CFG.pastaRaiz || "GAE Vistorias", "root");
@@ -622,9 +683,10 @@ async function enviar(manual) {
         seguir();
         let it = await ler("itens", p.id);
         if (!it) continue;
-        const n = `${enviados + 1} de ${total}`;
+        const n = `${enviados + falhas.length + 1} de ${total}`;
+        try {
         if (it.foto && !it.drive.foto) {
-          passo(`${n}: foto (${(it.foto.size / 1e6).toFixed(1)} MB)`);
+          passo(`${n}: foto (${(tamanhoDe(it.foto) / 1e6).toFixed(1)} MB)`);
           const id = await subir(it.fotoNome, it.foto, v.pastaId);
           seguir();
           it = await mudarItem(it.id, x => (x.drive.foto = id));
@@ -645,12 +707,21 @@ async function enviar(manual) {
           if (x.texto === texto && x.audioNome === nomeAudio) x.notaAlterada = false;   // mudou durante o envio: vai de novo
         });
         enviados++;
+        } catch (e) {
+          // sem acesso ou envio abandonado: para tudo; outro problema: anota e segue para o próximo item
+          if (geracao !== envioGeracao || !conectado() || /expirou|retomado/.test(e.message)) throw e;
+          registrar(`✗ ${p.nome}: ${e.message}`);
+          falhas.push(e.message);
+        }
         if (vistoria?.id === v.id) await desenharItens();
       }
     }
+    registrar(`Envio terminado: ${enviados} enviado(s), ${falhas.length} com problema`);
+    if (falhas.length) throw new Error(`${falhas.length} item(ns) não foram (${falhas[0]})`);
     tentativas = 0;
     if (manual || enviados) aviso(enviados ? `${enviados} item(ns) enviado(s) para o Drive.` : "Nada para enviar.");
   } catch (e) {
+    if (geracao === envioGeracao && !/não foram/.test(e.message)) registrar(`✗ Envio parado: ${e.message}`);
     if (geracao !== envioGeracao) return;          // abandonado: outro envio já recomeçou
     // falha de rede/prazo: tenta de novo sozinho (até 3 vezes; zera quando um envio termina bem)
     if (++tentativas <= 3) {
@@ -677,8 +748,8 @@ async function compartilhar() {
   $("#dlgMenu").close();
   const arquivos = [];
   for (const it of await itensDa(vistoria.id)) {
-    if (it.foto) arquivos.push(new File([it.foto], it.fotoNome, { type: it.foto.type || "image/jpeg" }));
-    if (it.audio) arquivos.push(new File([it.audio], it.audioNome, { type: it.audio.type || "audio/mp4" }));
+    if (it.foto) arquivos.push(new File([comoBlob(it.foto)], it.fotoNome, { type: tipoDe(it.foto) || "image/jpeg" }));
+    if (it.audio) arquivos.push(new File([comoBlob(it.audio)], it.audioNome, { type: tipoDe(it.audio) || "audio/mp4" }));
     arquivos.push(new File([jsonNota(it, vistoria)], `NOTA_${it.nome}.json`, { type: "application/json" }));
   }
   if (!arquivos.length) return aviso("A vistoria ainda não tem itens.");
@@ -743,6 +814,16 @@ function ligar() {
   $("#mnCompartilhar").onclick = compartilhar;
   $("#mnExcluir").onclick = excluirVistoria;
   $("#mnFechar").onclick = () => $("#dlgMenu").close();
+  $("#mnRegistro").onclick = () => {
+    $("#dlgMenu").close();
+    let l = [];
+    try { l = JSON.parse(localStorage.getItem("gaeRegistro") || "[]"); } catch { /* vazio */ }
+    $("#textoRegistro").textContent = l.length ? l.slice().reverse().join("\n") : "Nenhum envio registrado ainda.";
+    $("#dlgRegistro").showModal();
+  };
+  $("#btCopiarRegistro").onclick = () =>
+    navigator.clipboard?.writeText($("#textoRegistro").textContent).then(() => aviso("Registro copiado."), () => aviso("Não foi possível copiar."));
+  $("#btFecharRegistro").onclick = () => $("#dlgRegistro").close();
   $("#btFotografei").onclick = fotografei;
   $("#btFecharRelogio").onclick = fecharRelogio;
 

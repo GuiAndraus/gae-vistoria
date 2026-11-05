@@ -57,9 +57,15 @@ capturas de tela e `resultado.json`. Passou em 05/11/2026 sem erros de console. 
 áudio) e o envio ao Drive (depende do ID do cliente).
 
 ## Pendências
-- Envio ao Drive testado no iPhone em 05/11/2026 (foto + áudio + nota chegaram em H:\Meu Drive\GAE Vistorias). O envio
-  do áudio travou uma vez (causa desconhecida): desde a 1.0.3 cada pedido tem prazo (`buscar`), mostra o passo, recomeça
-  ao voltar ao app; 1.0.4 tenta de novo sozinho (até 3×, a cada 20 s). Observar se volta a acontecer.
+- Envio ao Drive testado no iPhone em 05/11/2026 (foto + áudio + nota chegaram em H:\Meu Drive\GAE Vistorias); na 1ª
+  vez o envio do **áudio** travou (foto de 3,7 MB subiu em segundos, áudio de 110 kB ficou parado). Revisão do envio
+  na **1.1.0** (pedido do usuário): fotos/áudios guardados como **bytes** (`guardavel`: `{ tipo, bytes }`, não Blob —
+  Blob no IndexedDB do Safari às vezes não é mais lido; itens antigos com Blob ainda funcionam, `bytesDe` com prazo);
+  **um pedido por arquivo** até 5 MB (`uploadType=multipart`, corpo montado em bytes), resumable só acima;
+  prazo por pedido (`buscar`); **item com problema não para os outros** (vai para a fila; nova tentativa sozinha até
+  3×, a cada 20 s); **registro** (menu ⋯ › Registro de envio, `localStorage.gaeRegistro`, 200 linhas) com nome,
+  tamanho e tempo de cada arquivo. O teste (`tools\teste_app.py`) simula o Drive (`page.route`): confere nomes,
+  pastas, conteúdo do JSON, PATCH da nota editada e a falha isolada do áudio.
 - Etapa 2, no Gerador de Laudos: importar a pasta da vistoria, ligar notas às fotos pelo horário (com acerto do
   relógio da câmera), mostrar a nota na Organização (sai junto com a foto "fora do laudo"), usar como legenda ou como
   notas da IA na Descrição.
