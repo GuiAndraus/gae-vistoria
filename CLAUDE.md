@@ -44,8 +44,9 @@ manifest.webmanifest, icones/
 ```
 
 ## Teste
-`scratchpad/teste_app.py` (Playwright + Chrome, tela 390×844): cria vistoria, foto + nota, só nota, relógio, edição,
-recarrega e confere os itens. Passou em 05/11/2026 sem erros de console. Falta testar no iPhone (câmera, ditado,
+`python tools\teste_app.py <pasta do app> <pasta de saída>` (Playwright + Chrome instalado, tela 390×844; servidor
+local em 127.0.0.1:8123): cria vistoria, foto + nota, só nota, relógio, edição, recarrega e confere os itens; grava
+capturas de tela e `resultado.json`. Passou em 05/11/2026 sem erros de console. Falta testar no iPhone (câmera, ditado,
 áudio) e o envio ao Drive (depende do ID do cliente).
 
 ## Pendências
